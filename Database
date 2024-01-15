@@ -1,0 +1,797 @@
+---IDENTIFICACIÓN & MANEJO DE DATOS
+
+# Detección de valores nulos
+
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.users`
+WHERE
+/*user_id IS NULL 
+  age IS NULL 
+  sex IS NULL*/ 
+  last_month_salary IS NULL
+/*number_dependents IS NULL*/;
+
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.loans`
+WHERE
+  user_id IS NULL
+/*loan_id IS NULL
+  loan_type IS NULL*/;
+
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.details`
+WHERE
+  user_id IS NULL
+/*more_90_days_overdue IS NULL
+  using_lines_not_secured_personal_assets IS NULL
+  number_times_delayed_payment_loan_30_59_days IS NULL
+  debt_ratio IS NULL
+  number_times_delayed_payment_loan_60_89_days IS NULL*/;
+
+SELECT
+  * 
+FROM
+  `proyecto-no3-riesgos.dataset.default` 
+WHERE
+  user_id IS NULL
+/*default_flag IS NULL*/;
+
+# Unión de tabla Users & Default p/comprender la proporción de valores nulos de la columna LastMonthSalary de la tabla Users
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.users` AS A
+LEFT JOIN
+  `proyecto-no3-riesgos.dataset.default` AS B
+ON
+  A.user_id = B.user_id
+WHERE
+  last_month_salary IS NULL
+  /*AND number_dependents IS NULL*/
+  AND default_flag = 1; 
+
+# Detección de duplicados
+
+SELECT 
+  user_id,
+  COUNT(*) AS duplicates
+FROM 
+  `proyecto-no3-riesgos.dataset.users` 
+GROUP BY
+  user_id
+HAVING
+  duplicates > 1;
+
+SELECT 
+  /*loan_id,*/user_id,
+  COUNT(*) AS duplicates
+FROM 
+  `proyecto-no3-riesgos.dataset.loans` 
+GROUP BY
+  /*loan_id,*/user_id
+HAVING 
+  duplicates > 1;
+
+SELECT 
+  user_id,
+  COUNT(*) AS duplicates
+FROM 
+  `proyecto-no3-riesgos.dataset.details` 
+GROUP BY
+  user_id
+HAVING
+  duplicates > 1;
+
+SELECT  
+  default_flag,
+  COUNT(*) AS duplicates
+FROM 
+  `proyecto-no3-riesgos.dataset.default`
+GROUP BY
+  default_flag
+HAVING
+  duplicates > 1;
+
+# Identificación de valores fuera del alcance
+
+SELECT
+  ROUND(CORR(age, last_month_salary), 3) AS corr_age_salary,
+  ROUND(CORR(age, number_dependents), 3) AS corr_age_dependents,
+  ROUND(CORR(last_month_salary,number_dependents), 3) AS corr_salary_dependents,
+FROM 
+  `proyecto-no3-riesgos.dataset.users`;
+
+SELECT
+  ROUND(CORR(user_id, loan_id), 3) AS corr_user_loan,
+FROM 
+  `proyecto-no3-riesgos.dataset.loans`;
+
+SELECT
+/*
+  ROUND(CORR(using_lines_not_secured_personal_assets, debt_ratio), 3) AS corr_assets_debt,
+---UsingLinesNotSecuredPersonalAssets & VariableS de Tiempo:
+  ROUND(CORR(using_lines_not_secured_personal_assets, more_90_days_overdue), 3) AS corr_assets_overdue90,
+  ROUND(CORR(using_lines_not_secured_personal_assets, number_times_delayed_payment_loan_30_59_days), 3) AS corr_assets_delayed30,
+  ROUND(CORR(using_lines_not_secured_personal_assets, number_times_delayed_payment_loan_60_89_days), 3) AS corr_assets_delayed60,
+---DebtRatio & VariableS de Tiempo:
+  ROUND(CORR(debt_ratio, more_90_days_overdue), 3) AS corr_debts_overdue90,
+  ROUND(CORR(debt_ratio, number_times_delayed_payment_loan_30_59_days), 3) AS corr_debts_delayed30,
+  ROUND(CORR(debt_ratio, number_times_delayed_payment_loan_60_89_days), 3) AS corr_debts_delayed60,
+*/
+---VariableS de Tiempo:
+  ROUND(CORR(more_90_days_overdue, number_times_delayed_payment_loan_30_59_days), 3) AS corr_overdue90_delayed30,
+  ROUND(CORR(more_90_days_overdue, number_times_delayed_payment_loan_60_89_days), 3) AS corr_overdue90_delayed60,
+  ROUND(CORR(number_times_delayed_payment_loan_30_59_days, number_times_delayed_payment_loan_60_89_days), 3) AS corr_delayed30_delayed60
+FROM
+  `proyecto-no3-riesgos.dataset.details`;
+
+# Manejo de valores fuera del alcance: selección por DE (Desviación Estándar)
+
+SELECT 
+  STDDEV(more_90_days_overdue) AS de_overdue90,
+  STDDEV(number_times_delayed_payment_loan_30_59_days) AS de_delayed30,
+  STDDEV(number_times_delayed_payment_loan_60_89_days) AS de_delayed60,
+FROM 
+  `proyecto-no3-riesgos.dataset.details`;
+
+#Identificar y manejar datos inconsistentes en variables categóricas
+
+SELECT 
+  CASE 
+    WHEN LOWER(loan_type) = 'others' THEN 'other'
+    ELSE LOWER(loan_type)
+  END AS loan_type_clean
+FROM 
+  `proyecto-no3-riesgos.dataset.loans`;
+
+#Identificar datos discrepantes en variables numéricas: quantiles
+
+SELECT
+---P/variable "UsinglinesNotSecuredPersonalAssets": cuartiles, deciles y percentiles 
+  APPROX_QUANTILES(using_lines_not_secured_personal_assets, 4) AS assets4,
+  APPROX_QUANTILES(using_lines_not_secured_personal_assets, 10) AS assets10,
+  APPROX_QUANTILES(using_lines_not_secured_personal_assets, 100) AS assets100,
+---P/variable "More90DaysOverdue": cuartiles, deciles y percentiles 
+  APPROX_QUANTILES(debt_ratio, 4) AS debt4,
+  APPROX_QUANTILES(debt_ratio, 10) AS debt10,
+  APPROX_QUANTILES(debt_ratio, 100) AS debt100,
+---P/variable "More90DaysOverdue": cuartiles, deciles y percentiles 
+  APPROX_QUANTILES(more_90_days_overdue, 4) AS overdue4,
+  APPROX_QUANTILES(more_90_days_overdue, 10) AS overdue10,
+  APPROX_QUANTILES(more_90_days_overdue, 100) AS overdue100,
+---P/variable "NumberTimesDelayedPaymentLoan30-59Days": cuartiles, deciles y percentiles 
+  APPROX_QUANTILES(number_times_delayed_payment_loan_30_59_days, 4) AS delayed30_4,
+  APPROX_QUANTILES(number_times_delayed_payment_loan_30_59_days, 10) AS delayed30_10,
+  APPROX_QUANTILES(number_times_delayed_payment_loan_30_59_days, 100) AS delayed30_100,
+---P/variable "NumberTimesDelayedPaymentLoan30-59Days": cuartiles, deciles y percentiles 
+  APPROX_QUANTILES(number_times_delayed_payment_loan_60_89_days, 4) AS delayed60_4,
+  APPROX_QUANTILES(number_times_delayed_payment_loan_60_89_days, 10) AS delayed60_10,
+  APPROX_QUANTILES(number_times_delayed_payment_loan_60_89_days, 100) AS delayed60_100,
+FROM
+  `proyecto-no3-riesgos.dataset.details`;
+
+SELECT
+---P/variable "DefaultFlag": cuartiles,deciles y percentiles 
+  APPROX_QUANTILES(default_flag, 4) AS flag4,
+  APPROX_QUANTILES(default_flag, 10) AS flag10,
+  APPROX_QUANTILES(default_flag, 100) AS flag100,
+FROM
+  `proyecto-no3-riesgos.dataset.default`;
+
+SELECT
+---P/variable "Age": cuartiles, deciles y percentiles
+  APPROX_QUANTILES(age, 4) AS age4,
+  APPROX_QUANTILES(age, 10) AS age10,
+  APPROX_QUANTILES(age, 100) AS age100,
+---P/variable "LastMonthSalary": cuartiles, deciles y percentiles 
+  APPROX_QUANTILES(last_month_salary, 4) AS salary4,
+  APPROX_QUANTILES(last_month_salary, 10) AS salary10,
+  APPROX_QUANTILES(last_month_salary, 100) AS salary100,
+FROM
+  `proyecto-no3-riesgos.dataset.users`;
+
+# Cambio de tipo de dato de la columna "LastMonthSalary" de FLOAT a INTEGER 
+
+SELECT
+  SAFE_CAST(last_month_salary AS INTEGER) AS latest_salary
+FROM
+  `proyecto-no3-riesgos.dataset.users`;
+
+# Comprobar que NO haya valores decimales en la columna LastMonthSalary,para que al cambiar su tipo se evite perdida de info
+
+SELECT
+  last_month_salary
+FROM
+  `proyecto-no3-riesgos.dataset.users`
+WHERE
+  last_month_salary IS NOT NULL
+  AND last_month_salary != 0
+  AND last_month_salary - ROUND(last_month_salary) != 0;
+
+# Creación de nueva variable
+
+SELECT
+  user_id,
+---Agrupación por cantidad total de préstamos (LoanID) 
+  COUNT(DISTINCT loan_id) AS total_loans,
+---Cuantificación de tipo de préstamos (LoanType) si contiene PARTE de las condiciones respectivas: 
+  COUNTIF(REGEXP_CONTAINS(loan_type, '(?i)real estate')) AS real_estate,
+  COUNTIF(REGEXP_CONTAINS(loan_type, '(?i)other')) AS others
+FROM
+  `proyecto-no3-riesgos.dataset.loans`
+GROUP BY
+  user_id;
+
+# Creación de nueva variables
+
+SELECT
+  user_id, more_90_days_overdue,
+---Estandarizar todo valor mayor a 0.999 de UsingLinesNotSecuredPersonalAssets & DebtRatio a 1
+  CASE
+    WHEN using_lines_not_secured_personal_assets < 1 THEN using_lines_not_secured_personal_assets
+    ELSE 1
+  END AS credit_lines_new,
+  CASE
+    WHEN debt_ratio < 1 THEN debt_ratio
+    ELSE 1
+  END AS debt_ratio_new
+FROM
+  `proyecto-no3-riesgos.dataset.details`
+---Sacar inconsistencias de la variable de tiempo a trabajar en hipótesis
+WHERE
+  more_90_days_overdue < 90;
+
+---TABLAS
+
+# View limpia de tablas
+
+SELECT
+  * EXCEPT (sex, last_month_salary),
+    SAFE_CAST(last_month_salary AS INTEGER) AS latest_salary
+FROM
+  `proyecto-no3-riesgos.dataset.users`;
+
+SELECT
+  user_id,
+  COUNT(DISTINCT loan_id) AS total_loans,
+  COUNTIF(REGEXP_CONTAINS(loan_type, '(?i)real estate')) AS real_estate,
+  COUNTIF(REGEXP_CONTAINS(loan_type, '(?i)other')) AS others
+FROM
+  `proyecto-no3-riesgos.dataset.loans`
+GROUP BY
+  user_id;
+
+# Creación de tabla master (1), SIN imputaciones NI eliminaciones
+
+/*CREATE OR REPLACE TABLE  `proyecto-no3-riesgos.dataset.original` AS*/
+SELECT
+  A.*,
+  B.* EXCEPT (user_id), ---Eliminación de las repeticiones por key
+  C.* EXCEPT (user_id),
+  D.* EXCEPT (user_id),
+
+FROM
+    `proyecto-no3-riesgos.dataset.pre_users` AS A
+LEFT JOIN
+    `proyecto-no3-riesgos.dataset.pre_loans` AS B
+ON
+  A.user_id = B.user_id
+LEFT JOIN
+    `proyecto-no3-riesgos.dataset.details` AS C
+ON
+  A.user_id = C.user_id
+LEFT JOIN
+  `proyecto-no3-riesgos.dataset.default` AS D
+  ON
+  A.user_id = D.user_id;
+
+# Creación de tabla master (2), CON eliminaciones SIN imputaciones
+
+/*CREATE OR REPLACE TABLE  `proyecto-no3-riesgos.dataset.temporal` AS*/
+SELECT
+  * EXCEPT (number_times_delayed_payment_loan_30_59_days, number_times_delayed_payment_loan_60_89_days)
+FROM
+    `proyecto-no3-riesgos.dataset.original`
+WHERE age < 99 
+AND (latest_salary < 31750 OR latest_salary IS NULL);
+
+# Imputación de valores Nulos de LoanS (TotalLoans,RealEstate,Others) por 0
+
+SELECT
+  user_id,
+  IFNULL(total_loans, 0) AS total_loans_new,
+  IFNULL(real_estate, 0) AS real_estate_new,
+  IFNULL(others, 0) AS others_new
+FROM
+  `proyecto-no3-riesgos.dataset.temporal`;
+
+# Imputación de valores mayor a 0.999 de Details (UsingLinesNotSecuredPersonalAssets & DebtRatio) por 1
+
+SELECT
+user_id,
+  CASE
+    WHEN more_90_days_overdue < 90 THEN more_90_days_overdue
+    ELSE 15
+  END AS overdue_90_days, #63 modificaciones
+  CASE
+    WHEN using_lines_not_secured_personal_assets < 1 THEN using_lines_not_secured_personal_assets
+    ELSE 1
+  END AS credit_lines_new, #780 modificaciones
+  CASE
+    WHEN debt_ratio < 1 THEN debt_ratio
+    ELSE 1
+  END AS debt_ratio_new #8,461 modificaciones
+FROM
+  `proyecto-no3-riesgos.dataset.temporal`
+
+# Creación de tabla master (3), CON eliminaciones & CON imputaciones
+
+/*CREATE OR REPLACE TABLE  `proyecto-no3-riesgos.dataset.final` AS*/
+SELECT
+  A.user_id,
+  A.age,
+  IFNULL (number_dependents, 0) AS dependents_new,
+  A.latest_salary,
+  B.* EXCEPT (user_id), ---Eliminación de las repeticiones por key
+  C.* EXCEPT (user_id),
+  A.default_flag
+FROM
+    `proyecto-no3-riesgos.dataset.post_users` AS A ---Imputación de LastMonthSalary por Python en Google Colab
+LEFT JOIN
+    `proyecto-no3-riesgos.dataset.post_loans` AS B
+ON
+  A.user_id = B.user_id
+LEFT JOIN
+    `proyecto-no3-riesgos.dataset.post_details` AS C
+ON
+  A.user_id = C.user_id;
+
+# HITO1:
+
+---Riesgos relativos y tasas de incidencia de malos (1) y buenos (0) pagadores por variable:
+
+# Edad
+
+WITH quartiles AS (
+  SELECT
+    age,
+    default_flag,
+    NTILE(4) OVER (ORDER BY age) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+SELECT
+  'age' AS variable,
+  cuartil,
+  MIN(age) AS val_min,
+  MAX(age) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Dependientes
+
+WITH quartiles AS (
+  SELECT
+    dependents_new,
+    default_flag,
+    NTILE(4) OVER (ORDER BY dependents_new) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+SELECT
+  'number_dependents' AS variable,
+  cuartil,
+  MIN(dependents_new) AS val_min,
+  MAX(dependents_new) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Salario
+
+WITH quartiles AS (
+  SELECT
+    latest_salary,
+    default_flag,
+    NTILE(4) OVER (ORDER BY latest_salary) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+SELECT
+  'last_month_salary' AS variable,
+  cuartil,
+  MIN(latest_salary) AS val_min,
+  MAX(latest_salary) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Préstamos
+
+WITH quartiles AS (
+  SELECT
+    total_loans_new,
+    default_flag,
+    NTILE(4) OVER (ORDER BY total_loans_new) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+SELECT
+  'loans' AS variable,
+  cuartil,
+  MIN(total_loans_new) AS val_min,
+  MAX(total_loans_new) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Bienes Raíces (Préstamos)
+
+WITH quartiles AS (
+  SELECT
+    real_estate_new,
+    default_flag,
+    NTILE(4) OVER (ORDER BY real_estate_new) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+SELECT
+  'real_estate_loans' AS variable,
+  cuartil,
+  MIN(real_estate_new) AS val_min,
+  MAX(real_estate_new) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Otros Préstamos
+
+WITH quartiles AS (
+  SELECT
+    others_new,
+    default_flag,
+    NTILE(4) OVER (ORDER BY others_new) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+SELECT
+  'other_loans' AS variable,
+  cuartil,
+  MIN(others_new) AS val_min,
+  MAX(others_new) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Tiempo (Más de 90 Días de Atraso)
+
+WITH quartiles AS (
+  SELECT
+    overdue_90_days,
+    default_flag,
+    NTILE(4) OVER (ORDER BY overdue_90_days) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+
+SELECT
+  'more_90_days_overdue' AS variable,
+  cuartil,
+  MIN(overdue_90_days) AS val_min,
+  MAX(overdue_90_days) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Uso de Líneas No Aseguradas con Activos Personales
+
+WITH quartiles AS (
+  SELECT
+    credit_lines_new,
+    default_flag,
+    NTILE(4) OVER (ORDER BY credit_lines_new) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+
+SELECT
+  'using_lines_not_secured_personal_assets' AS variable,
+  cuartil,
+  MIN(credit_lines_new) AS val_min,
+  MAX(credit_lines_new) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Proporción de Deuda
+
+WITH quartiles AS (
+  SELECT
+    debt_ratio_new,
+    default_flag,
+    NTILE(4) OVER (ORDER BY debt_ratio_new) AS cuartil,
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+),
+totals AS (
+  SELECT
+    COUNTIF(default_flag = 1) AS suma_1,
+    COUNTIF(default_flag = 0) AS suma_0
+  FROM
+    `proyecto-no3-riesgos.dataset.final`
+)
+
+SELECT
+  'debt_ratio' AS variable,
+  cuartil,
+  MIN(debt_ratio_new) AS val_min,
+  MAX(debt_ratio_new) AS val_max,
+  COUNTIF(default_flag = 1) / suma_1 AS tasa_1,
+  COUNTIF(default_flag = 0) / suma_0 AS tasa_0,
+  CASE
+    WHEN COUNTIF(default_flag = 0) = 0 THEN NULL
+    ELSE (COUNTIF(default_flag = 1) / suma_1) / (COUNTIF(default_flag = 0) / suma_0)
+  END AS riesgo_relativo
+FROM
+  quartiles
+CROSS JOIN
+  totals
+GROUP BY
+  variable, cuartil, suma_1, suma_0
+ORDER BY
+  variable, cuartil;
+
+# Creación de tabla de riesgo relativo de malos (1) y buenos (0) pagadores para toda las variables
+
+/*CREATE OR REPLACE TABLE  `proyecto-no3-riesgos.dataset.riesgo_relativo` AS*/
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.1_age`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.2_number_dependents`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.3_last_month_salary`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.4_loans`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.5_real_estate_loans`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.6_other_loans`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.7_more_days_overdue`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.8_using_lines_not_secured_personal_assets`
+UNION ALL
+SELECT
+  *
+FROM
+  `proyecto-no3-riesgos.dataset.9_debt_ratio`
+GROUP BY
+  variable, cuartil, val_min, val_max, tasa_1, tasa_0, riesgo_relativo
+ORDER BY
+  variable, cuartil;
+
+# HITO 2 & 3
+
+---Score Crediticio
+
+# View de cuartiles por usuario
+
+SELECT
+user_id,
+default_flag,
+  NTILE(4) OVER (ORDER BY age) AS age_q,
+  NTILE(4) OVER (ORDER BY latest_salary) AS salary_q,
+  NTILE(4) OVER (ORDER BY dependents_new) AS dependents_q,
+  NTILE(4) OVER (ORDER BY total_loans_new) AS loans_q,
+  NTILE(4) OVER (ORDER BY real_estate_new) AS real_estate_q,
+  NTILE(4) OVER (ORDER BY others_new) AS others_q,
+  NTILE(4) OVER (ORDER BY overdue_90_days) AS days_overdue_q,
+  NTILE(4) OVER (ORDER BY credit_lines_new) AS credit_lines_q,
+  NTILE(4) OVER (ORDER BY debt_ratio_new) AS debt_ratio_q,
+FROM `proyecto-no3-riesgos.dataset.final`;
+
+# Tabla de score creditio para cada usuario
+
+/*CREATE OR REPLACE TABLE `proyecto-no3-riesgos.dataset.scores` AS*/
+WITH dummies AS (---Obtención de variables dummies, por imputación de valor binario de acuerdo al valor relativo calculado por cuartil de cada variable
+  SELECT
+    user_id,
+    default_flag,
+    CASE WHEN age_q IN (1, 2) THEN 1 ELSE 0 END AS age_dummy,
+    CASE WHEN dependents_q IN (1, 4) THEN 1 ELSE 0 END AS dependents_dummy,
+    CASE WHEN salary_q IN (1, 2) THEN 1 ELSE 0 END AS salary_dummy,
+    CASE WHEN loans_q = 1 THEN 1 ELSE 0 END AS loans_dummy,
+    CASE WHEN real_estate_q = 1 THEN 1 ELSE 0 END AS real_estate_dummy,
+    CASE WHEN others_q = 1 THEN 1 ELSE 0 END AS others_dummy,
+    CASE WHEN days_overdue_q = 4 THEN 1 ELSE 0 END AS overdue_dummy,
+    CASE WHEN credit_lines_q = 4 THEN 1 ELSE 0 END AS credit_dummy,
+    CASE WHEN debt_ratio_q IN (3, 4) THEN 1 ELSE 0 END AS debt_dummy
+  FROM
+    `proyecto-no3-riesgos.dataset.ntiles`
+),
+score_total AS (---suma de las 5 variables dummies a trabajar, ponderando overdue & credit con valor mayor dado su riesgo relativo
+  SELECT
+    *,
+    age_dummy + salary_dummy + loans_dummy + overdue_dummy + credit_dummy AS score
+  FROM
+    dummies
+)
+SELECT ---predicción de default_flag, delimitado por el valor del score (4)
+  *,
+  CASE WHEN score >= 4 THEN 1 ELSE 0 END AS new_flag
+FROM
+  score_total; 
