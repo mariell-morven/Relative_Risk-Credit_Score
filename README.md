@@ -1,7 +1,16 @@
-<h1 align="center"> Proyecto: Riesgo Relativo </h1>
+<!-- TITLE-->
 
-<h2> 📖 Contexto: </h2> 
-El aumento en la demanda de créditos ha desencadenando la sobrecarga y subsecuente demora en la evaluación manual de solicitudes de préstamo por el equipo de análisis de crédito del banco “Super Caja”.
-<h2> 🎯 Objetivo: </h2>
-Automatizar la concesión de préstamos optimizando la predicción de incumplimiento de pagos con base en un score crediticio que categorice a los solicitantes de acuerdo al riesgo relativo de impago. 
-<br> Integrando una métrica ya existente por el banco que identifica a los clientes con pagos atrasados.
+## 📖 Context
+An increase in the credit demand has triggered the overload and subsequent delay in the case by case evaluation of loan applications by the credit analysis team of the bank "Super Caja".
+## 🎯 Objectives
+
+## 🗂️ Database
+1. user_info table; 
+## ⚙️ Tools
+- SQL (BigQuery)
+- Python (Google Colab): Pandas, Numpy, Seaborn, Matplotlib
+- Looker Studio
+## 🔬 Analysis
+## 📊 Results
+
+## 📝 Conclusions & Recommendations
